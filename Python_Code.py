@@ -1,0 +1,134 @@
+import serial
+import time
+import threading
+from datetime import datetime
+import tkinter as tk
+import csv
+
+# --- CONFIGURATION ---
+PORT = '/dev/ttyACM0'  # Update with your serial port (e.g., '/dev/ttyUSB0')
+BAUD = 115200
+SMOOTH_STEPS = 10
+SMOOTH_INTERVAL = 0.08
+
+# --- Thresholds ---
+ANGLE_THRESHOLD = 0.5  # degrees
+THROTTLE_THRESHOLD = 5  # PWM units
+
+# --- SERIAL INIT ---
+try:
+    ser = serial.Serial(PORT, BAUD, timeout=1)
+    time.sleep(2)
+except serial.SerialException:
+    ser = None
+
+# --- LOGGING SETUP ---
+log_file = open("control_log.csv", mode="w", newline="")
+csv_writer = csv.writer(log_file)
+csv_writer.writerow([
+    "PC Timestamp", 
+    "Arduino Time (ms)", 
+    "Measured Steering Angle (deg)", 
+    "User Throttle PWM", 
+    "User Steering Angle (deg)"
+])
+
+# --- GLOBAL STATE ---
+current_throttle = 0
+current_steering = 0.0
+latest_measured_angle = 0.0
+latest_arduino_time = 0
+throttle_lock = threading.Lock()
+steering_lock = threading.Lock()
+
+# --- SERIAL LISTENER THREAD ---
+def serial_worker():
+    global latest_measured_angle, latest_arduino_time
+    while True:
+        if ser:
+            try:
+                line = ser.readline().decode().strip()
+                if line:
+                    # Read the steering angle sent by Arduino
+                    latest_measured_angle = float(line)
+                    latest_arduino_time = int(time.time() * 1000)  # Current time in ms
+                    # Log the measured angle
+                    csv_writer.writerow([
+                        datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f"),
+                        latest_arduino_time,
+                        latest_measured_angle,
+                        current_throttle,
+                        current_steering
+                    ])
+                    log_file.flush()
+            except Exception as e:
+                print(f"Serial Error: {e}")
+        time.sleep(0.05)
+
+# --- SMOOTH SEND ---
+def smooth_send(start, end, command_prefix, lock, is_float=False):
+    delta = (end - start) / SMOOTH_STEPS
+    for i in range(1, SMOOTH_STEPS + 1):
+        value = start + delta * i
+        formatted = f"{command_prefix}{round(value, 2) if is_float else int(value)}"
+        with lock:
+            send_serial(formatted)
+        time.sleep(SMOOTH_INTERVAL)
+
+# --- CALLBACKS ---
+def on_throttle_change(value):
+    global current_throttle
+    target = int(value)
+    if abs(target - current_throttle) < THROTTLE_THRESHOLD:
+        send_serial(f"T{target}")
+    else:
+        threading.Thread(target=smooth_send, args=(current_throttle, target, "T", throttle_lock), daemon=True).start()
+    current_throttle = target
+
+def on_steering_change(value):
+    global current_steering
+    target = round(float(value), 2)
+    if abs(target - current_steering) < ANGLE_THRESHOLD:
+        send_serial(f"S{target}")
+    else:
+        threading.Thread(target=smooth_send, args=(current_steering, target, "S", steering_lock, True), daemon=True).start()
+    current_steering = target
+
+def send_serial(command):
+    if ser:
+        try:
+            ser.write((command + '\n').encode())
+        except Exception as e:
+            print(f"Serial Error: {e}")
+
+def emergency_stop():
+    throttle_slider.set(0)
+    steering_slider.set(0)
+
+def on_exit():
+    if ser:
+        ser.close()
+    log_file.close()
+    root.destroy()
+
+# --- GUI ---
+root = tk.Tk()
+root.title("Drive-by-Wire Control")
+root.geometry("400x300")
+
+tk.Label(root, text="Throttle Control", font=("Arial", 12)).pack()
+throttle_slider = tk.Scale(root, from_=0, to=155, orient='horizontal', length=350, command=on_throttle_change)
+throttle_slider.pack()
+
+tk.Label(root, text="Steering Control", font=("Arial", 12)).pack()
+steering_slider = tk.Scale(root, from_=-30, to=30, resolution=0.2, orient='horizontal', length=350, command=on_steering_change)
+steering_slider.pack()
+
+tk.Button(root, text="🛑 Emergency Stop", bg="red", fg="white", command=emergency_stop).pack(pady=5)
+tk.Button(root, text="Exit", command=on_exit).pack()
+
+# --- Threads ---
+threading.Thread(target=serial_worker, daemon=True).start()
+
+# --- Run GUI ---
+root.mainloop()
