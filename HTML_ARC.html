@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Raspberry Pi Home Control</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .control-panel {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-gap: 20px;
+            width: 80%;
+            max-width: 700px;
+        }
+        .control-button {
+            font-size: 2em;
+            padding: 30px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        .on {
+            background-color: #4CAF50; /* Green */
+        }
+        .off {
+            background-color: #f44336; /* Red */
+        }
+        .control-button:hover {
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+    <div class="control-panel">
+        <button class="control-button" id="light1" onclick="toggleDevice('light1')">Light 1</button>
+        <button class="control-button" id="light2" onclick="toggleDevice('light2')">Light 2</button>
+        <button class="control-button" id="fan1" onclick="toggleDevice('fan1')">Fan 1</button>
+        <button class="control-button" id="fan2" onclick="toggleDevice('fan2')">Fan 2</button>
+        <button class="control-button" id="ac" onclick="toggleDevice('ac')">AC</button>
+        <button class="control-button" id="vehicle" onclick="toggleDevice('vehicle')">Vehicle</button>
+    </div>
+
+    <script>
+        // Function to toggle the device state
+        function toggleDevice(device) {
+            fetch(`/toggle/${device}`)
+                .then(response => response.json())
+                .then(data => {
+                    const button = document.getElementById(device);
+                    if (data.state === "on") {
+                        button.classList.remove('off');
+                        button.classList.add('on');
+                    } else {
+                        button.classList.remove('on');
+                        button.classList.add('off');
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+        }
+    </script>
+</body>
+</html>
