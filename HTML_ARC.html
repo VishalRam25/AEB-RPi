@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Raspberry Pi Home Control</title>
+    <title>ARC Vehicle Dashboard Control</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -13,13 +13,16 @@
             align-items: center;
             height: 100vh;
             margin: 0;
+            flex-direction: column; /* Added to stack elements vertically */
+            text-align: center; /* Center the logo horizontally */
         }
         .control-panel {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             grid-gap: 20px;
             width: 80%;
-            max-width: 700px;
+            max-width: 900px;
+            margin-top: 20px; /* Space between logo and buttons */
         }
         .control-button {
             font-size: 2em;
@@ -41,6 +44,9 @@
     </style>
 </head>
 <body>
+    <div>
+        <img src="VIT_LOGO.png" alt="VIT Logo">
+    </div>
     <div class="control-panel">
         <button class="control-button" id="light1" onclick="toggleDevice('light1')">Light 1</button>
         <button class="control-button" id="light2" onclick="toggleDevice('light2')">Light 2</button>
